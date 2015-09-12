@@ -292,9 +292,7 @@ def pause(interval):
     time.sleep(interval)
 
 
-@docstring.copy_dedent(matplotlib.rc)
-def rc(*args, **kwargs):
-    matplotlib.rc(*args, **kwargs)
+rc = matplotlib.rc
 
 
 @docstring.copy_dedent(matplotlib.rc_context)

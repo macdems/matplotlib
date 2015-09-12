@@ -1157,14 +1157,39 @@ rcParams['text.usetex'] = checkdep_usetex(rcParams['text.usetex'])
 if rcParams['axes.formatter.use_locale']:
     locale.setlocale(locale.LC_ALL, '')
 
+class _SubRc(object):
+    def __init__(self, group):
+        self.__dict__['_group'] = group
 
-def rc(group, **kwargs):
+    def __setattr__(self, attr, value):
+        name = _Rc.aliases.get(attr) or attr
+        key = self._group + '.' + name
+        if key not in rcParams:
+            raise KeyError('Unrecognized key "%s"' % key)
+        rcParams[key] = value
+
+    def __getattr__(self, attr):
+        name = _Rc.aliases.get(attr) or attr
+        newgroup = self._group + '.' + name
+        return _SubRc(newgroup)
+
+    def __repr__(self):
+        if self._group not in rcParams:
+            raise KeyError('Unrecognized key "%s"' % self._group)
+        return repr(rcParams[self._group])
+
+class _Rc(object):
     """
-    Set the current rc params.  Group is the grouping for the rc, e.g.,
-    for ``lines.linewidth`` the group is ``lines``, for
-    ``axes.facecolor``, the group is ``axes``, and so on.  Group may
-    also be a list or tuple of group names, e.g., (*xtick*, *ytick*).
-    *kwargs* is a dictionary attribute name/value pairs, e.g.,::
+    Set the current rc params.  There are two alternative ways of using
+    this object.  One is to call it like a function::
+
+      rc(group, **kwargs)
+
+    Group is the grouping for the rc, eg. for ``lines.linewidth``
+    the group is ``lines``, for ``axes.facecolor``, the group is ``axes``,
+    and so on.  Group may also be a list or tuple of group names,
+    eg. (*xtick*, *ytick*).  *kwargs* is a dictionary attribute name/value
+    pairs, eg::
 
       rc('lines', linewidth=2, color='r')
 
@@ -1186,6 +1211,7 @@ def rc(group, **kwargs):
     'ec'    'edgecolor'
     'mew'   'markeredgewidth'
     'aa'    'antialiased'
+    'sans'  'sans-serif'
     =====   =================
 
     Thus you could abbreviate the above rc command as::
@@ -1206,29 +1232,53 @@ def rc(group, **kwargs):
     This enables you to easily switch between several configurations.
     Use :func:`~matplotlib.pyplot.rcdefaults` to restore the default
     rc params after changes.
+
+    Another way of using this object is to use the Python syntax like::
+
+      rc.figure.subplot.top = 0.9
+
+    which is equivalent to::
+
+      rc('figure.subplot', top=0.9)
     """
 
     aliases = {
-        'lw':  'linewidth',
-        'ls':  'linestyle',
-        'c':   'color',
-        'fc':  'facecolor',
-        'ec':  'edgecolor',
-        'mew': 'markeredgewidth',
-        'aa':  'antialiased',
-        }
+        'lw'  : 'linewidth',
+        'ls'  : 'linestyle',
+        'c'   : 'color',
+        'fc'  : 'facecolor',
+        'ec'  : 'edgecolor',
+        'mew' : 'markeredgewidth',
+        'aa'  : 'antialiased',
+        'sans': 'sans-serif'
+    }
 
-    if is_string_like(group):
-        group = (group,)
-    for g in group:
-        for k, v in six.iteritems(kwargs):
-            name = aliases.get(k) or k
-            key = '%s.%s' % (g, name)
-            try:
+    def __call__(self, group, **kwargs):
+        if is_string_like(group):
+            group = (group,)
+        for g in group:
+            for k,v in kwargs.items():
+                name = _Rc.aliases.get(k) or k
+                key = '%s.%s' % (g, name)
+                if key not in rcParams:
+                    raise KeyError('Unrecognized key "%s" for group "%s" and name "%s"' %
+                                   (key, g, name))
                 rcParams[key] = v
-            except KeyError:
-                raise KeyError(('Unrecognized key "%s" for group "%s" and '
-                                'name "%s"') % (key, g, name))
+
+    def __setattr__(self, attr, value):
+        key = _Rc.aliases.get(attr) or attr
+        if key not in rcParams:
+            raise KeyError('Unrecognized key "%s"' % key)
+        rcParams[key] = value
+
+    def __getattribute__(self, attr):
+        if attr[:2] != '__':
+            return _SubRc(attr)
+        else:
+            raise AttributeError
+
+rc = _Rc()
+_Rc.__name__ = 'rc'
 
 
 def rcdefaults():
